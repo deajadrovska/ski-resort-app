@@ -1,0 +1,37 @@
+---
+# Headless Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-headless
+  namespace: ski-resort
+  labels:
+    app: mongodb
+    service-type: headless
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongodb
+
+---
+# Regular Service for application access
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: ski-resort
+  labels:
+    app: mongodb
+    service-type: clusterip
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongodb

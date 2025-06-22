@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: ski-resort
+  labels:
+    app: backend
+    component: api
+    version: v1
+spec:
+  replicas: 3  # for HA
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        component: api
+        version: v1
+    spec:
+      containers:
+        - name: backend
+          image: deajadrovska/ski-resort-backend:latest
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            # Configuration from ConfigMap
+            - name: FLASK_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: FLASK_ENV
+            - name: FLASK_DEBUG
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: FLASK_DEBUG
+            - name: API_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: API_HOST
+            - name: API_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: API_PORT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: LOG_LEVEL
+
+            # MongoDB connection from ConfigMap
+            - name: MONGO_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: MONGO_HOST
+            - name: MONGO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: MONGO_PORT
+            - name: MONGO_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: MONGO_DATABASE
+
+            # Sensitive data from Secret
+            - name: MONGO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: MONGO_USERNAME
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: MONGO_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: JWT_SECRET
+
+            # Build MongoDB URI for replica set
+            - name: MONGO_URI
+              value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongodb-headless.ski-resort.svc.cluster.local:27017,mongodb-1.mongodb-headless.ski-resort.svc.cluster.local:27017,mongodb-2.mongodb-headless.ski-resort.svc.cluster.local:27017/$(MONGO_DATABASE)?replicaSet=rs0"
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      # Wait for MongoDB to be ready
+      initContainers:
+        - name: wait-for-mongodb
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for MongoDB to be ready..."
+              until nc -z mongodb-service 27017; do
+                echo "MongoDB not ready, sleeping..."
+                sleep 5
+              done
+              echo "MongoDB is ready!"
