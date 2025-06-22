@@ -7,14 +7,39 @@ data:
   mongodb-port: "27017"
   mongodb-service: "mongodb-service"
   init-script: |
+    // Wait for replica set to be ready
+    sleep(5000);
+    
+    // Switch to admin database
+    db = db.getSiblingDB('admin');
+    
+    // Create root user if it doesn't exist
+    try {
+      db.createUser({
+        user: 'admin',
+        pwd: 'skiresort123',
+        roles: [
+          { role: 'root', db: 'admin' }
+        ]
+      });
+      print('Root user created successfully');
+    } catch (e) {
+      print('Root user may already exist: ' + e.message);
+    }
+    
+    // Switch to application database
     db = db.getSiblingDB('ski_resort_db');
-    db.createUser({
-      user: 'admin',
-      pwd: 'skiresort123',
-      roles: [
-        {
-          role: 'readWrite',
-          db: 'ski_resort_db'
-        }
-      ]
-    });
+    
+    // Create application user
+    try {
+      db.createUser({
+        user: 'admin',
+        pwd: 'skiresort123',
+        roles: [
+          { role: 'readWrite', db: 'ski_resort_db' }
+        ]
+      });
+      print('Application user created successfully');
+    } catch (e) {
+      print('Application user may already exist: ' + e.message);
+    }
